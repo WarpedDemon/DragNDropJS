@@ -1,0 +1,306 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="css/stylesheet.css" />
+
+  </head>
+
+  <body id="body">
+
+  </body>
+  <script src="js/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript">
+
+    //Javascript Variable definitions
+    var startTime = Date.now();
+    var lastSpawn = 0;
+    var MotherNode, targetSquare;
+    var SQUARES = {};
+    var Constants = {
+      MAX_SQUARE_COUNT: 20,
+      SPAWN_RATE: 1
+    };
+
+    //Html Element definitions
+    var body = document.getElementById("body");
+    document.addEventListener('mousemove', onMouseMove, false);
+    document.addEventListener('mouseup', onMouseUp, false);
+
+    //Javascript Object definitions
+    var mouse = {
+      x: 0,
+      y: 0,
+      diffX: 0,
+      diffY: 0
+    };
+
+    var motherNode = function(x, y, width, height, object) {
+      var self = {
+        x: x - width/2,
+        y: y - height/2,
+        width: width,
+        height: height,
+        count: 0,
+        rCount: 0,
+        gCount: 0,
+        bCount: 0,
+        object: object
+      };
+
+      return self;
+    }
+
+    var FallingSquare = function(id, x, y, color, object, fallSpeed, bambi) {
+      var self = {
+        id: id,
+        x: x,
+        sx: x,
+        y: y,
+        width: 32,
+        height: 32,
+        color: color,
+        object: object,
+        fallSpeed: fallSpeed,
+        animating: true,
+        amplitude: 100,
+        frequency: 0.1,
+        cosAngle: 0,
+        r:Math.floor(Math.random()*255),
+        g:Math.floor(Math.random()*255),
+        b:Math.floor(Math.random()*255),
+        bambi: bambi
+      };
+
+      return self;
+    }
+
+    function tick(dt) {
+      //Spawn Squares...
+      if(Constants.SPAWN_RATE < dt - lastSpawn) {
+        //Can spawn new square...
+        var newSquareId = Math.random() + Math.random();
+        var newSquareObject = $("<div class='Square' id=" + newSquareId + "></div>");
+        newSquareObject = newSquareObject[0];
+
+        //Bind mouse click event listeners to new square div.
+        newSquareObject.addEventListener("mousedown", onMouseDownOnSquare, false);
+        newSquareObject.addEventListener("mouseup", onMouseUpOnSquare, false);
+        newSquareObject.remove = function() {
+          this.parentElement.removeChild(this);
+        }
+        //Create new FallingSquare object with necessary details.
+        var newSquare = new FallingSquare(newSquareId, Math.random() * window.screen.width, -50, "blue", newSquareObject, Math.ceil(Math.random()*4, false));
+        newSquare.object.style.left = newSquare.x;
+        newSquare.object.style.top = "-50px";
+        newSquare.object.style.backgroundColor = "rgba(" + newSquare.r + "," + newSquare.g + "," + newSquare.b + ", 1)";
+
+        //Place square on body and add to square array.
+        body.append(newSquare.object);
+        SQUARES[newSquareId] = newSquare;
+
+        //Reset last spawn time to now.
+        lastSpawn = dt;
+      }
+
+      //Update positions of all Squares.
+      for(var i in SQUARES) {
+        var square = SQUARES[i];
+        if(square.animating) {
+          //Make them fall
+          square.y += square.fallSpeed;
+          square.object.style.top = square.y + "px";
+
+          
+          //Make them perform cos wave movement.
+          square.cosAngle += 1 * square.frequency;
+          square.x = square.sx + square.amplitude * Math.cos(square.cosAngle);
+
+
+        } else {
+          //If not animating, follow cursor movement.
+          square.x = mouse.x - mouse.diffX;
+          square.y = mouse.y - mouse.diffY;
+          square.sx = square.x;
+          square.sy = square.y;
+        }
+        //Position objects.
+        square.object.style.left = square.x + "px";
+        square.object.style.top = square.y + "px";
+      }
+    }
+
+    function render() {
+      //Update background color...
+      body.style.backgroundColor = "rgba(" + Math.floor(MotherNode.rCount/MotherNode.count) + ", " + Math.floor(MotherNode.gCount/MotherNode.count) + ", " + Math.floor(MotherNode.bCount/MotherNode.count) + ", 0.5)"
+    }
+
+    //Animation / Game Loop
+    function animate() {
+      //Update Game Timers...
+      var now = Date.now();
+      var gameTime = (now - startTime);
+      var dt = gameTime/1000; //Game Time Variable
+
+
+      //Update all game variables / information...
+      tick(dt);
+
+      //Render all game objects...
+      render();
+
+      requestAnimationFrame(animate);
+    }
+    //Event Listener Functions
+    function onMouseDownOnSquare(e) {
+      var clickX = e.pageX;
+      var clickY = e.pageY;
+
+      var targetId = e.target.id;
+      var square = SQUARES[targetId];
+      targetSquare = square;
+
+      var diffX = clickX - square.x;
+      var diffY = clickY - square.y;
+
+      mouse.diffX = diffX;
+      mouse.diffY = diffY;
+
+      square.animating = false;
+
+
+    }
+
+    function onMouseUp(e) {
+      //If the target square is one formed from the mother node...
+      if(targetSquare.bambi) {
+        //If not placing back inside Mother Node.
+        if(!boxCollides([targetSquare.x, targetSquare.y],[targetSquare.width, targetSquare.height],[MotherNode.x, MotherNode.y],[MotherNode.width, MotherNode.height])) {
+          targetSquare.bambi = false;
+          targetSquare.animating = true;
+          MotherNode.rCount = 0;
+          MotherNode.gCount = 0;
+          MotherNode.bCount = 0;
+          MotherNode.count = 0;
+        } else {
+          //If placed back in mother node, reset mothernode to previous state.
+          MotherNode.count = 1;
+          MotherNode.rCount = targetSquare.r;
+          MotherNode.gCount = targetSquare.g;
+          MotherNode.bCount = targetSquare.b;
+          targetSquare.object.remove();
+          delete SQUARES[targetSquare.id];
+
+        }
+      }
+    }
+
+    function onMouseUpOnSquare(e) {
+      var square = SQUARES[e.target.id];
+      square.animating = true;
+      square.sx = square.x;
+      square.sy = square.y;
+
+      var mouseUpX = e.pageX;
+      var mouseUpY = e.pageY;
+
+      if(boxCollides([square.x, square.y],[square.width, square.height],[MotherNode.x, MotherNode.y],[MotherNode.width, MotherNode.height])) {
+        //Dropped into mother node...
+        MotherNode.count += 1;
+        MotherNode.rCount += square.r;
+        MotherNode.gCount += square.g;
+        MotherNode.bCount += square.b;
+
+        console.log((MotherNode.rCount / MotherNode.count),(MotherNode.gCount / MotherNode.count),(MotherNode.bCount / MotherNode.count));
+        MotherNode.object.style.backgroundColor = "rgba(" + Math.floor((MotherNode.rCount / MotherNode.count)) + ", " + Math.floor((MotherNode.gCount / MotherNode.count)) + ", " + Math.floor((MotherNode.bCount / MotherNode.count)) + ", 1)"
+
+        square.object.remove();
+        delete SQUARES[e.target.id];
+      }
+    }
+
+    function onMouseMove(e) {
+      //Update mouse locations
+      var x = e.pageX;
+      var y = e.pageY;
+      mouse.x = x;
+      mouse.y = y;
+    }
+
+    function onMouseDownMotherNode(e) {
+      var clickX = e.pageX;
+      var clickY = e.pageY;
+
+      var targetId = e.target.id;
+
+
+      var diffX = clickX - MotherNode.x;
+      var diffY = clickY - MotherNode.y;
+
+      //Calculate offset from top left of element to click point.
+      mouse.diffX = diffX;
+      mouse.diffY = diffY;
+
+      //Divide difference by three, because a normal falling square is 1/3 the size of mother node.
+      mouse.diffX /= 3;
+      mouse.diffY /= 3;
+
+      //Create new variables / elements
+      var newSquareId = Math.random() + Math.random();
+      var newSquareObject = $("<div class='Square' id='" + newSquareId + "'> </div>");
+      newSquareObject = newSquareObject[0];
+      newSquareObject.style.left = mouse.x - mouse.diffX;
+      newSquareObject.style.top = mouse.y - mouse.diffY;
+      //Assign event listeners
+      newSquareObject.addEventListener("mousedown", onMouseDownOnSquare, false);
+      newSquareObject.addEventListener("mouseup", onMouseUpOnSquare, false);
+      var newNodeSquare = new FallingSquare(newSquareId, clickX - diffX, clickY - diffY, 50, newSquareObject, Math.random() * 4, true);
+      newNodeSquare.r = Math.floor(MotherNode.rCount / MotherNode.count);
+      newNodeSquare.g = Math.floor(MotherNode.gCount / MotherNode.count);
+      newNodeSquare.b = Math.floor(MotherNode.bCount / MotherNode.count);
+      newNodeSquare.animating = false;
+      //Color elements appropriately.
+      newNodeSquare.object.style.backgroundColor = "rgba(" + newNodeSquare.r + ", " + newNodeSquare.g + ", " + newNodeSquare.b + ", 1)";
+      MotherNode.object.style.backgroundColor = 'white';
+
+      body.append(newNodeSquare.object);
+
+      SQUARES[newNodeSquare.id] = newNodeSquare;
+
+      //Set your target to this newly created square.
+      targetSquare = newNodeSquare;
+    }
+
+    function onMouseUpMotherNode(e) {
+      //Not really needed...
+    }
+
+    //Initialize the game and the mother node in the center.
+    function initializeGame() {
+
+      var object = $("<div class='MotherNode'></div>");
+      object = object[0];
+      MotherNode = new motherNode(window.screen.width/2, window.screen.height/2, 150, 150, object);
+      MotherNode.object.style.left = MotherNode.x + "px";
+      MotherNode.object.style.top = MotherNode.y + "px";
+      MotherNode.object.addEventListener("mousedown", onMouseDownMotherNode, false);
+      MotherNode.object.addEventListener("mouseup", onMouseUpMotherNode, false);
+      body.append(MotherNode.object);
+
+    }
+
+    //collision functions
+    function collides(x, y, r, b, x2, y2, r2, b2) {
+		    return !(r <= x2 || x > r2 || b <= y2 || y > b2);
+			}
+			//Checks collisions for boxes only.
+			//pos = item x and y coordinates. eg [0, 0]
+			//size = item dimensions (size). eg [50, 50];
+			//pos2 = item 2 x and y coordinates.
+			//size2 = item 2 dimensions (size).
+			function boxCollides(pos, size, pos2, size2) {
+			    return collides(pos[0], pos[1], pos[0] + size[0], pos[1] + size[1], pos2[0], pos2[1], pos2[0] + size2[0], pos2[1] + size2[1]);
+			}
+
+    initializeGame();
+    animate();
+  </script>
+</html>
